@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="theme-color" content="#1e3a8a" />
+<title>Κόστος Ταξιδιού με Αυτοκίνητο 🇬🇷 v2</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  :root{ --bg:#0f172a; --card:#ffffff; --accent:#2563eb; --muted:#64748b; --radius:16px; }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{margin:0;font-family:"Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif;background:#f1f5f9;color:#0f172a;overflow-x:hidden;-webkit-tap-highlight-color:transparent}
+  img{max-width:100%}
+  header{background:linear-gradient(135deg,#1e3a8a,#2563eb 60%,#06b6d4);color:#fff;padding:28px 20px;text-align:center}
+  header h1{margin:0;font-size:clamp(22px,3.5vw,34px);line-height:1.25;overflow-wrap:anywhere}
+  header p{margin:8px 0 0;opacity:.9;font-size:clamp(13px,2.5vw,16px)}
+  main{max-width:1200px;margin:-18px auto 40px;padding:0 16px;display:grid;grid-template-columns:400px minmax(0,1fr);gap:16px}
+  .card{background:var(--card);border-radius:var(--radius);box-shadow:0 10px 30px rgba(15,23,42,.08);padding:20px;min-width:0}
+  label{font-weight:600;font-size:14px;display:block;margin:14px 0 6px}
+  /* 16px στα inputs για να μην κάνει zoom το iOS στο focus */
+  input,select{width:100%;max-width:100%;padding:12px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:16px;outline:none;background:#fff}
+  input:focus,select:focus{border-color:var(--accent)}
+  .row{display:flex;gap:8px}
+  .row>div{flex:1;min-width:0}
+  .autocomplete{position:relative}
+  .suggest{position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #e2e8f0;border-radius:10px;margin-top:4px;z-index:2000;max-height:240px;overflow:auto;box-shadow:0 12px 30px rgba(0,0,0,.12);-webkit-overflow-scrolling:touch}
+  .suggest div{padding:12px;cursor:pointer;font-size:15px;border-bottom:1px solid #f1f5f9}
+  .suggest div:hover,.suggest div:active{background:#eff6ff}
+  .btn{width:100%;margin-top:16px;padding:14px;min-height:48px;border:none;border-radius:12px;font-size:17px;font-weight:700;cursor:pointer;touch-action:manipulation}
+  .btn-primary{background:var(--accent);color:#fff}
+  .btn-primary:hover{background:#1d4ed8}
+  .btn-primary:active{transform:scale(.99)}
+  .btn-ghost{background:#f1f5f9;color:#0f172a;margin-top:8px}
+  .icon-btn{padding:12px 14px;min-height:48px;border:1.5px solid #e2e8f0;background:#fff;border-radius:10px;cursor:pointer;font-size:16px;white-space:nowrap;touch-action:manipulation;flex-shrink:0}
+  .check{display:flex;align-items:center;gap:10px;margin-top:14px;background:#f0fdf4;border:1px solid #bbf7d0;padding:12px;border-radius:10px;min-height:48px}
+  .check input{width:22px;height:22px;flex-shrink:0}
+  .results{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px}
+  .stat{background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:12px;text-align:center;min-width:0}
+  .stat small{color:var(--muted);display:block;font-size:12px}
+  .stat strong{font-size:19px;overflow-wrap:anywhere}
+  .total{background:linear-gradient(135deg,#059669,#10b981);color:#fff;border:none}
+  .total small{color:#e6fffa}
+  .map-card{padding:10px}
+  #map{height:560px;min-height:300px;width:100%;max-width:100%;border-radius:var(--radius);z-index:1;touch-action:pan-x pan-y}
+  #map img{max-width:none}
+  .hint{font-size:12.5px;color:var(--muted);margin-top:6px;line-height:1.5;overflow-wrap:anywhere}
+  .badge{display:inline-block;font-size:12px;padding:4px 10px;border-radius:999px;margin-top:8px;border:1px solid;max-width:100%}
+  .badge-official{background:#ecfdf5;border-color:#6ee7b7;color:#065f46}
+  .badge-estimate{background:#fef3c7;border-color:#fcd34d;color:#92400e}
+  #tollBreakdown{background:#f8fafc;border:1px dashed #cbd5e1;border-radius:10px;padding:10px 12px;margin-top:8px;font-size:13px;line-height:1.6;overflow-wrap:anywhere}
+  #status{margin-top:12px;font-size:14px;min-height:20px;color:#334155}
+  .loader{display:inline-block;width:16px;height:16px;border:2px solid #cbd5e1;border-top-color:var(--accent);border-radius:50%;animation:spin 0.8s linear infinite;vertical-align:-3px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .sources{font-size:11.5px;color:var(--muted);margin-top:14px;line-height:1.6}
+  .sources a{color:var(--accent)}
+  .field-row{display:flex;gap:8px}
+  .field-row input{flex:1;min-width:0}
+  .icon-btn.picking{background:var(--accent);border-color:var(--accent);color:#fff}
+  /* ---------- Mobile ---------- */
+  @media(max-width:900px){
+    header{padding:20px 14px}
+    main{grid-template-columns:minmax(0,1fr);margin:-12px auto 24px;padding:0 10px;gap:12px}
+    .card{padding:16px;border-radius:14px}
+    .row{flex-direction:column}
+    #swapBtn{width:100%}
+    .results{grid-template-columns:1fr 1fr;gap:8px}
+    .stat strong{font-size:17px}
+    .map-card{padding:8px}
+    #map{height:64vw;min-height:300px;max-height:420px}
+  }
+  @media(max-width:380px){
+    .results{grid-template-columns:1fr 1fr}
+    .stat{padding:10px 6px}
+    .stat strong{font-size:16px}
+    .btn{font-size:16px}
+  }
+  @media(prefers-reduced-motion:reduce){ *{animation:none !important;transition:none !important} }
+  #printSummary{display:none}
+  #shareModal{position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:3000;display:flex;align-items:center;justify-content:center;padding:16px}
+  #shareModal[hidden]{display:none}
+  .share-box{background:#fff;border-radius:16px;padding:20px;max-width:480px;width:100%;max-height:90vh;overflow:auto}
+  .share-box h3{margin:0 0 4px}
+  #shareTextArea{width:100%;font-size:14px;padding:10px;border:1.5px solid #e2e8f0;border-radius:10px;resize:vertical}
+  #openGmaps{text-decoration:none;text-align:center;display:block}
+  /* ---------- Εκτύπωση: όλα σε μία σελίδα Α4 ---------- */
+  @page{size:A4 portrait;margin:11mm}
+  @media print{
+    header,.form-card,#status,.sources,#shareModal{display:none !important}
+    body{background:#fff}
+    main{display:block;max-width:none;margin:0;padding:0}
+    #printSummary{display:block !important;font-size:11.5pt;line-height:1.45;color:#000}
+    #printSummary h2{font-size:17pt;margin:0 0 2mm}
+    #printSummary .psub{font-size:9.5pt;color:#444;margin:0 0 3mm}
+    #printSummary table{width:100%;border-collapse:collapse;margin:0 0 3mm;font-size:10.5pt}
+    #printSummary th,#printSummary td{border:1px solid #999;padding:1.5mm 2.5mm;text-align:left;vertical-align:top}
+    #printSummary th{background:#eee !important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    #printSummary .ptotal td{font-weight:700;font-size:12pt;background:#e6f4ea !important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    #printSummary .pbreak{font-size:9pt;color:#333}
+    .map-card{box-shadow:none;border:1px solid #999;padding:2mm !important;break-inside:avoid}
+    #map{height:95mm !important;min-height:0 !important;border-radius:0}
+    .leaflet-control-zoom,.leaflet-control-layers{display:none !important}
+    .leaflet-control-attribution{font-size:7pt !important}
+    .map-card .hint{display:none !important}
+  }
+  /* Προεπισκόπηση μεγέθους χάρτη πριν την εκτύπωση (για να φορτώσουν τα πλακίδια) */
+  body.pre-print #map{height:95mm;min-height:0}
+</style>
+</head>
+<body>
+<header>
+  <h1>🚗 Υπολογισμός Κόστους Ταξιδιού <span style="font-size:14px;background:rgba(255,255,255,.25);padding:3px 10px;border-radius:999px">v2 · πραγματικά διόδια 2026</span></h1>
+  <p>Αφετηρία → Προορισμός • Κατανάλωση • Καύσιμα • Επίσημα διόδια • Χάρτης</p>
+</header>
+
+<main>
+  <section class="card form-card">
+    <div>
+      <label for="vehicleCat">🚛 Κατηγορία οχήματος (κλίμακα διοδίων)</label>
+      <select id="vehicleCat">
+        <option value="1">Κατ. 1 — Μοτοσικλέτα / τρίκυκλο</option>
+        <option value="2" selected>Κατ. 2 — ΙΧ / ελαφρύ έως 2,20 μ</option>
+        <option value="3">Κατ. 3 — Φορτηγό / λεωφορείο 2–3 άξονες, &gt;2,20 μ</option>
+        <option value="4">Κατ. 4 — Φορτηγό 4+ άξονες, &gt;2,20 μ</option>
+      </select>
+      <div class="hint">Τα διόδια εξαρτώνται από την κατηγορία — διάλεξέ την πρώτα.</div>
+    </div>
+
+    <div class="autocomplete">
+      <label for="from">📍 Αφετηρία</label>
+      <div class="field-row">
+        <input id="from" placeholder="π.χ. Αθήνα ή διάλεξε από τον χάρτη" autocomplete="off" />
+        <button class="icon-btn" id="locateBtn" title="Η θέση μου">◎</button>
+        <button class="icon-btn" id="pickFromBtn" title="Επιλογή από τον χάρτη">🗺</button>
+      </div>
+      <div class="suggest" id="fromSuggest" hidden></div>
+    </div>
+
+    <div style="text-align:center;margin-top:8px">
+      <button class="icon-btn" id="swapBtn" title="Εναλλαγή">⇅ Εναλλαγή</button>
+    </div>
+
+    <div class="autocomplete">
+      <label for="to">🏁 Προορισμός</label>
+      <div class="field-row">
+        <input id="to" placeholder="π.χ. Θεσσαλονίκη ή διάλεξε από τον χάρτη" autocomplete="off" />
+        <button class="icon-btn" id="pickToBtn" title="Επιλογή από τον χάρτη">🗺</button>
+      </div>
+      <div class="suggest" id="toSuggest" hidden></div>
+    </div>
+
+    <div class="row">
+      <div>
+        <label for="consumption">⛽ Κατανάλωση (L/100km)</label>
+        <input id="consumption" type="number" inputmode="decimal" min="1" max="30" step="0.1" value="7.5" />
+      </div>
+      <div>
+        <label for="fuelType">🔋 Καύσιμο</label>
+        <select id="fuelType">
+          <option value="2.19" selected>Βενζίνη 95 — 2.19 €/L</option>
+          <option value="2.42">Βενζίνη 100 — 2.42 €/L</option>
+          <option value="2.19">Diesel — 2.19 €/L</option>
+          <option value="1.00">LPG — 1.00 €/L</option>
+          <option value="custom">✏️ Δική μου τιμή…</option>
+        </select>
+      </div>
+    </div>
+
+    <label for="fuelPrice">💶 Τιμή καυσίμου (€ / λίτρο)</label>
+    <input id="fuelPrice" type="number" inputmode="decimal" min="0.1" max="5" step="0.001" value="2.19" />
+    <div class="hint">Προεπιλογές = πανελλαδικός μέσος όρος <b>17/9/2026</b> (ΔΙΜΕΑ / fuelprices.gr). Οι τιμές αλλάζουν συχνά — διόρθωσέ τες με την τιμή του πρατηρίου σου.</div>
+
+    <label for="tolls" id="tollsLabel">🛣️ Διόδια (€) — Κατ. 2</label>
+    <input id="tolls" type="number" inputmode="decimal" min="0" step="0.05" value="0" />
+    <div class="hint">Τα διόδια συμπληρώνονται <b>αυτόματα από επίσημους τιμοκαταλόγους 2026</b> όταν η διαδρομή ταιριάζει σε γνωστό άξονα. Αλλιώς μπαίνει εκτίμηση και μπορείς να το διορθώσεις.</div>
+    <span class="badge badge-official" id="tollBadgeOfficial" hidden>✓ επίσημη τιμή 2026</span>
+    <span class="badge badge-estimate" id="tollBadgeEstimate" hidden>≈ εκτίμηση — διόρθωσέ το αν ξέρεις το ακριβές</span>
+    <div id="tollBreakdown" hidden></div>
+
+    <label class="check"><input type="checkbox" id="roundTrip" /> Μετ' επιστροφής ×2</label>
+
+    <button class="btn btn-primary" id="calcBtn">Υπολογισμός κόστους</button>
+    <button class="btn btn-ghost" id="clearBtn">Καθαρισμός</button>
+    <button class="btn btn-ghost" id="printBtn">🖨️ Εκτύπωση / PDF</button>
+    <button class="btn btn-ghost" id="shareBtn">🔗 Κοινοποίηση</button>
+
+    <div id="status"></div>
+
+    <div class="results" id="results" hidden>
+      <div class="stat"><small>Απόσταση</small><strong id="rDist">–</strong></div>
+      <div class="stat"><small>Διάρκεια</small><strong id="rTime">–</strong></div>
+      <div class="stat"><small>Καύσιμα</small><strong id="rLiters">–</strong></div>
+      <div class="stat"><small>Κόστος καυσίμου</small><strong id="rFuel">–</strong></div>
+      <div class="stat"><small>Διόδια</small><strong id="rTolls">–</strong></div>
+      <div class="stat total"><small>ΣΥΝΟΛΟ</small><strong id="rTotal">–</strong></div>
+    </div>
+    <div class="hint" id="roundHint" hidden>Περιλαμβάνεται επιστροφή (×2).</div>
+
+    <div class="sources">
+      Πηγές διοδίων 2026 (κατ. 1–4): Νέα Οδός, Ολυμπία Οδός, Αυτοκινητόδρομος Αιγαίου, Κεντρική Οδός, Εγνατία Οδός, Μορέας, Αττική Οδός, Γέφυρα Ρίου–Αντιρρίου (κατ.3 = 2 άξονες· 3 άξονες 40,10€), σήραγγα Ακτίου. Συγκεντρωτικά: <a href="https://mydiodia.gr" target="_blank">mydiodia.gr</a>.
+      Οι τιμές αναπροσαρμόζονται κάθε 1η Ιανουαρίου.
+    </div>
+  </section>
+
+  <div id="printSummary" hidden></div>
+
+  <div id="shareModal" hidden>
+    <div class="share-box">
+      <h3>🔗 Κοινοποίηση ταξιδιού</h3>
+      <p class="hint">Η αυτόματη κοινοποίηση/αντιγραφή μπλοκαρίστηκε από τον browser. Αντίγραψε το κείμενο χειροκίνητα:</p>
+      <textarea id="shareTextArea" readonly rows="8"></textarea>
+      <a class="btn btn-primary" id="openGmaps" href="#" target="_blank" rel="noopener">🗺 Άνοιγμα διαδρομής στους Google Maps</a>
+      <button class="btn btn-ghost" id="copyTextBtn">📋 Προσπάθεια αντιγραφής</button>
+      <button class="btn btn-ghost" id="closeShareBtn">Κλείσιμο</button>
+      <div id="copyStatus" class="hint"></div>
+    </div>
+  </div>
+
+  <section class="card map-card">
+    <div id="map"></div>
+    <div class="hint" style="padding:8px 10px">Χάρτης: © OpenStreetMap · © CARTO · © Esri · Δρομολόγηση: OSRM / FOSSGIS (εφεδρικός) · Αναζήτηση: Nominatim / Photon (εφεδρική). Τα διόδια είναι ενσωματωμένα στον κώδικα (όχι live API — δεν υπάρχει δωρεάν κρατικό API).</div>
+  </section>
+</main>
+
+<script>
+// ---------- Χάρτης ----------
+const map = L.map('map').setView([38.5, 23.5], 6);
+// Υπόβαθρα ΧΩΡΙΣ εγγραφή: προεπιλογή CARTO (με το δωρεάν key) + Esri/OSM/HOT εφεδρικά
+const CARTO_KEY = 'cb1_3is8_1_210fa6376c67b373b2c513f5';
+const carto = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key=' + CARTO_KEY, { maxZoom: 19, attribution: '© OpenStreetMap contributors © CARTO' });
+const esri = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, attribution: '© Esri · © OpenStreetMap contributors' });
+const osm = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap contributors' });
+const hot = L.tileLayer('https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap contributors, HOT' });
+carto.addTo(map);
+L.control.layers({ 'Χάρτης (CARTO)': carto, 'Χάρτης (Esri)': esri, 'Χάρτης (OSM)': osm, 'Χάρτης (HOT)': hot }).addTo(map);
+// Σωστό μέγεθος χάρτη σε κινητά (περιστροφή / εμφάνιση πληκτρολογίου)
+setTimeout(()=>map.invalidateSize(), 300);
+window.addEventListener('orientationchange', ()=>setTimeout(()=>map.invalidateSize(), 400));
+window.addEventListener('resize', ()=>map.invalidateSize());
+let routeLayer = null, markers = [];
+let fromCoord = null, toCoord = null;
+let lastDistanceKm = 0, lastSeconds = 0;
+
+// ============================================================
+// ΒΑΣΗ ΔΙΟΔΙΩΝ 2026 — ανά κατηγορία οχήματος (€), από επίσημους τιμοκαταλόγους
+// Κατ.1: δίκυκλα · Κατ.2: ΙΧ/ελαφρά ≤2,20μ · Κατ.3: 2–3 άξονες >2,20μ · Κατ.4: 4+ άξονες
+// Γέφυρα Ρίου–Αντιρρίου: κατ.3 = 2 άξονες (3 άξονες: 40,10€) · Αττική Οδός: ενιαίο εισιτήριο
+// ============================================================
+const ST = {
+  'Αφιδνών': {1:2.70,2:3.90,3:9.75,4:13.70},
+  'Θήβας': {1:3.20,2:4.55,3:11.45,4:16.00},
+  'Τραγάνας': {1:3.15,2:4.55,3:11.40,4:15.95},
+  'Αγ. Τριάδας': {1:1.45,2:2.10,3:5.25,4:7.35},
+  'Μαυρομαντήλας': {1:1.55,2:2.25,3:5.65,4:7.90},
+  'Πελασγίας': {1:2.90,2:4.10,3:10.20,4:14.30},
+  'Μοσχοχωρίου': {1:3.30,2:4.70,3:11.80,4:16.50},
+  'Μακρυχωρίου': {1:2.10,2:3.00,3:7.50,4:10.50},
+  'Λεπτοκαρυάς': {1:2.60,2:3.80,3:9.40,4:13.10},
+  'Κλειδιού': {1:1.80,2:2.60,4:9.00},
+  'Μαλγάρων': {1:0.80,2:1.15,3:2.90,4:4.10},
+  'Θεσσαλονίκης': {1:0.45,2:0.65,3:1.70,4:2.35},
+  'Ανάληψης': {1:2.00,2:2.90,3:7.25,4:10.20},
+  'Ασπροβάλτας': {1:0.95,2:1.40,3:3.50,4:4.90},
+  'Μουσθένης': {1:1.85,2:2.65,3:6.70,4:9.40},
+  'Καβάλας': {1:1.60,2:2.30,3:5.85,4:8.15},
+  'Ιάσμου': {1:1.60,2:2.25,3:5.70,4:8.00},
+  'Μέστης': {1:1.90,2:2.75,3:6.90,4:9.65},
+  'Αρδανίου': {1:1.40,2:2.00,3:5.00,4:7.00},
+  'Τύριας': {1:2.35,2:3.35,3:8.45,4:11.85},
+  'Παμβώτιδας': {1:1.35,2:1.95,3:4.90,4:6.85},
+  'Μαλακασίου': {1:1.65,2:2.35,3:5.95,4:8.35},
+  'Σιάτιστας': {1:1.65,2:2.40,3:6.00,4:8.40},
+  'Πολυμύλου': {1:1.65,2:2.35,3:5.95,4:8.35},
+  'Ελευσίνας': {1:1.70,2:2.50,3:6.30,4:8.90},
+  'Ισθμού': {1:1.50,2:2.10,3:5.40,4:7.60},
+  'Κιάτου': {1:1.90,2:2.70,3:6.80,4:9.60},
+  'Ελαιώνα': {1:2.70,2:3.80,3:9.70,4:13.60},
+  'Ρίου': {1:1.90,2:2.70,3:6.80,4:9.50},
+  'Πάτρας': {1:2.50,2:3.60,3:9.00,4:12.70},
+  'Πύργου': {1:1.50,2:2.10,3:5.40,4:7.60},
+  'Κλόκοβας': {1:2.50,2:3.55,3:8.90,4:12.50},
+  'Αγγελοκάστρου': {1:2.90,2:4.20,3:10.50,4:14.70},
+  'Μενιδίου': {1:2.50,2:3.55,3:8.95,4:12.50},
+  'Τερόβου': {1:2.55,2:3.70,3:9.25,4:12.95},
+  'Σπαθοβουνίου': {1:2.00,2:2.95,3:7.45,4:10.45},
+  'Νεστάνης': {1:1.90,2:2.80,3:7.10,4:9.95},
+  'Μάναρη': {1:1.60,2:2.30,3:5.75,4:8.05},
+  'Βελιγοστής': {1:1.00,2:1.45,3:3.70,4:5.20},
+  'Καλαμάτας': {1:1.50,2:2.25,3:5.65,4:7.90},
+  'Πετρίνας (Σπάρτη)': {1:2.40,2:3.45,3:8.60,4:12.10},
+  'Λιανοκλαδίου': {1:1.40,2:2.05,3:5.15,4:7.20},
+  'Σοφάδων': {1:2.60,2:3.70,3:9.30,4:13.00},
+  'Τρικάλων': {1:2.25,2:3.25,3:8.10,4:11.40},
+  'Αττική Οδός': {1:1.25,2:2.55,3:6.30,4:10.10},
+  'Γέφυρα Ρίου–Αντιρρίου': {1:2.50,2:15.90,3:24.70,4:50.90},
+  'Σήραγγα Ακτίου': {1:1.50,2:3.00,4:9.00}
+};
+// Αναλογίες fallback όταν λείπει η ακριβής τιμή (στρογγυλοποίηση στο 0,05€)
+const CAT_RATIO = {1:0.70, 2:1, 3:2.50, 4:3.50};
+function tollPrice(name, cat){
+  const e = ST[name]; if(!e) return 0;
+  if(e[cat] !== undefined) return e[cat];
+  return Math.round(e[2] * (CAT_RATIO[cat] || 1) * 20) / 20;
+}
+// Σύνολο διαδρομής στην κατηγορία cat (με αναγωγή στο επίσημο σύνολο κατ.2 όπου υπάρχει)
+function routeTotal(route, cat){
+  const sumCat = route.stations.reduce((s,n)=>s + tollPrice(n,cat), 0);
+  if(!route.total) return sumCat;
+  if(cat === 2) return route.total;
+  const sumCat2 = route.stations.reduce((s,n)=>s + tollPrice(n,2), 0);
+  if(sumCat2 > 0) return route.total * sumCat / sumCat2;
+  return sumCat;
+}
+function round5(x){ return Math.round(x * 20) / 20; }
+
+// Γνωστές διαδρομές: σύνολο = άθροισμα σταθμών (επαληθευμένο με ανακοινώσεις 2026)
+const ROUTES = [
+  { keys:['athens','thessaloniki'], total:36.70, label:'Αθήνα → Θεσσαλονίκη (ΠΑΘΕ, 11 σταθμοί)',
+    stations:['Αφιδνών','Θήβας','Τραγάνας','Αγ. Τριάδας','Μαυρομαντήλας','Πελασγίας','Μοσχοχωρίου','Μακρυχωρίου','Λεπτοκαρυάς','Κλειδιού','Μαλγάρων'] },
+  { keys:['athens','patra'], total:13.80, label:'Αθήνα → Πάτρα (Ολυμπία Οδός)',
+    stations:['Ελευσίνας','Ισθμού','Κιάτου','Ελαιώνα','Ρίου'] },
+  { keys:['patra','pyrgos'], total:5.70, label:'Πάτρα → Πύργος',
+    stations:['Πάτρας','Πύργου'] },
+  { keys:['athens','pyrgos'], total:19.50, label:'Αθήνα → Πύργος (μέσω Πάτρας)',
+    stations:['Ελευσίνας','Ισθμού','Κιάτου','Ελαιώνα','Ρίου','Πάτρας','Πύργου'] },
+  { keys:['antirrio','ioannina'], total:15.00, label:'Αντίρριο → Ιωάννινα (Ιόνια Οδός)',
+    stations:['Κλόκοβας','Αγγελοκάστρου','Μενιδίου','Τερόβου'] },
+  { keys:['athens','ioannina'], total:44.70, label:'Αθήνα → Ιωάννινα (μέσω Πάτρας + Γέφυρας)',
+    stations:['Ελευσίνας','Ισθμού','Κιάτου','Ελαιώνα','Ρίου','Γέφυρα Ρίου–Αντιρρίου','Κλόκοβας','Αγγελοκάστρου','Μενιδίου','Τερόβου'] },
+  { keys:['rio','antirrio'], total:15.90, label:'Γέφυρα Ρίου–Αντιρρίου',
+    stations:['Γέφυρα Ρίου–Αντιρρίου'] },
+  { keys:['korinthos','kalamata'], total:11.75, label:'Κόρινθος → Καλαμάτα (Μορέας)',
+    stations:['Σπαθοβουνίου','Νεστάνης','Μάναρη','Βελιγοστής','Καλαμάτας'] },
+  { keys:['korinthos','sparti'], total:12.95, label:'Κόρινθος → Σπάρτη (Μορέας, επίσημο σύνολο 2026)',
+    stations:['Σπαθοβουνίου','Νεστάνης','Μάναρη','Πετρίνας (Σπάρτη)'] },
+  { keys:['athens','kalamata'], total:16.35, label:'Αθήνα → Καλαμάτα (Ολυμπία + Μορέας)',
+    stations:['Ελευσίνας','Ισθμού','Σπαθοβουνίου','Νεστάνης','Μάναρη','Βελιγοστής','Καλαμάτας'] },
+  { keys:['athens','sparti'], total:17.55, label:'Αθήνα → Σπάρτη (Ολυμπία + Μορέας)',
+    stations:['Ελευσίνας','Ισθμού','Σπαθοβουνίου','Νεστάνης','Μάναρη','Πετρίνας (Σπάρτη)'] },
+  { keys:['igoumenitsa','kipoi'], total:30.45, label:'Ηγουμενίτσα → Κήποι (ολόκληρη Εγνατία, 14 σταθμοί)',
+    stations:['Τύριας','Παμβώτιδας','Μαλακασίου','Σιάτιστας','Πολυμύλου','Μαλγάρων','Θεσσαλονίκης','Ανάληψης','Ασπροβάλτας','Μουσθένης','Καβάλας','Ιάσμου','Μέστης','Αρδανίου'] },
+  { keys:['thessaloniki','kavala'], label:'Θεσσαλονίκη → Καβάλα (Εγνατία)',
+    stations:['Θεσσαλονίκης','Ανάληψης','Ασπροβάλτας','Μουσθένης','Καβάλας'] },
+];
+
+// Ομαλοποίηση ονομάτων πόλεων (χωρίς τόνους, greeklish)
+function norm(s){
+  s = (s||'').toLowerCase();
+  const map = {'ά':'α','έ':'ε','ή':'η','ί':'ι','ό':'ο','ύ':'υ','ώ':'ω','ς':'σ','ϋ':'υ','ϊ':'ι'};
+  s = s.split('').map(c=>map[c]||c).join('');
+  return s;
+}
+function cityKey(s){
+  s = norm(s);
+  if(/athin|athen|αθην/.test(s)) return 'athens';
+  if(/thess|salon|θεσσαλον/.test(s)) return 'thessaloniki';
+  if(/patr|πατρ/.test(s)) return 'patra';
+  if(/pyrg|πυργ/.test(s)) return 'pyrgos';
+  if(/ioann|γιανν|ιωανν/.test(s)) return 'ioannina';
+  if(/kalam|καλαμ/.test(s)) return 'kalamata';
+  if(/spart|σπαρτ/.test(s)) return 'sparti';
+  if(/korinth|korinθ|κορινθ/.test(s)) return 'korinthos';
+  if(/kavala|καβαλ/.test(s)) return 'kavala';
+  if(/igoum|ηγουμεν/.test(s)) return 'igoumenitsa';
+  if(/kipoi|κηποι|αρδαν|αλεξανδρουπολ|εβρο/.test(s)) return 'kipoi';
+  if(/antirrio|αντιρριο/.test(s)) return 'antirrio';
+  if(/rio|ριο/.test(s) && /patr|πατρ/.test(s)) return 'patra';
+  if(/rio|ριου|ριο/.test(s)) return 'rio';
+  if(/lamia|λαμι/.test(s)) return 'lamia';
+  if(/laris|λαρισ/.test(s)) return 'larisa';
+  if(/volos|βολο/.test(s)) return 'volos';
+  return s.slice(0,20);
+}
+function findRealRoute(fromQ, toQ){
+  const a = cityKey(fromQ), b = cityKey(toQ);
+  // Γέφυρα: αν η διαδρομή περιέχει Ρίο/Αντίρριο
+  for(const r of ROUTES){
+    const [k1,k2] = r.keys;
+    if((a===k1 && b===k2) || (a===k2 && b===k1)) return r;
+  }
+  // Σύνθετη: Αθήνα → Ιωάννινα/Ηγουμενίτσα περιέχει Πάτρα+Γέφυρα+Ιόνια
+  if(a==='athens' && /ηγουμεν|igoum/.test(norm(toQ))) return { keys:[a,b], total:50.00,
+    label:'Αθήνα → Ηγουμενίτσα (Ολυμπία + Γέφυρα + Ιόνια + Εγνατία ως Ιωάννινα)',
+    stations:['Ελευσίνας','Ισθμού','Κιάτου','Ελαιώνα','Ρίου','Γέφυρα Ρίου–Αντιρρίου','Κλόκοβας','Αγγελοκάστρου','Μενιδίου','Τερόβου','Τύριας','Παμβώτιδας'] };
+  return null;
+}
+function fallbackEstimate(km){ if(km < 30) return 0; return Math.round(km*0.065*2)/2; }
+
+// ---------- Autocomplete ----------
+function debounce(fn, ms){ let t; return (...a)=>{clearTimeout(t); t=setTimeout(()=>fn(...a),ms);};}
+async function searchPlaces(q){
+  // Προσπάθεια 1: Nominatim (μπλοκάρει καμιά φορά με 403 από file:// ή rate-limit)
+  try{
+    const url = 'https://nominatim.openstreetmap.org/search?format=jsonv2&limit=6&countrycodes=gr&accept-language=el&q=' + encodeURIComponent(q);
+    const r = await fetch(url);
+    if(r.ok){ const j = await r.json(); if(j && j.length) return j; }
+  }catch(e){ /* πάμε στο εφεδρικό */ }
+  // Προσπάθεια 2 (εφεδρική): Photon — φιλικό σε CORS, χωρίς κλειδί
+  const pu = 'https://photon.komoot.io/api/?q=' + encodeURIComponent(q) + '&limit=6&lang=el';
+  const pr = await fetch(pu);
+  if(!pr.ok) throw new Error('Η αναζήτηση διευθύνσεων μπλοκαρίστηκε (HTTP ' + pr.status + '). Δοκίμασε ξανά σε 1 λεπτό ή άνοιξε τη σελίδα από localhost.');
+  const pj = await pr.json();
+  return (pj.features || []).map(f=>({
+    lat: String(f.geometry.coordinates[1]),
+    lon: String(f.geometry.coordinates[0]),
+    display_name: [f.properties.name, f.properties.city, f.properties.country].filter(Boolean).join(', ')
+  }));
+}
+function bindAutocomplete(inputEl, suggestEl, onPick){
+  inputEl.addEventListener('input', debounce(async ()=>{
+    const q = inputEl.value.trim(); onPick(null);
+    if(q.length < 3){ suggestEl.hidden = true; return; }
+    try{
+      const items = await searchPlaces(q);
+      if(!items.length){ suggestEl.hidden = true; return; }
+      suggestEl.innerHTML = '';
+      items.forEach(it=>{
+        const d = document.createElement('div');
+        d.textContent = it.display_name;
+        d.onclick = ()=>{ inputEl.value = it.display_name.split(',').slice(0,2).join(','); suggestEl.hidden = true;
+          onPick({lat:parseFloat(it.lat), lon:parseFloat(it.lon), name:it.display_name}); };
+        suggestEl.appendChild(d);
+      });
+      suggestEl.hidden = false;
+    }catch(e){ suggestEl.hidden = true; }
+  }, 450));
+  document.addEventListener('click', e=>{ if(!suggestEl.contains(e.target) && e.target!==inputEl) suggestEl.hidden = true; });
+}
+bindAutocomplete(document.getElementById('from'), document.getElementById('fromSuggest'), c=>fromCoord=c);
+bindAutocomplete(document.getElementById('to'), document.getElementById('toSuggest'), c=>toCoord=c);
+
+const fuelType = document.getElementById('fuelType');
+const fuelPrice = document.getElementById('fuelPrice');
+fuelType.addEventListener('change', ()=>{ if(fuelType.value!=='custom') fuelPrice.value = fuelType.value; else fuelPrice.focus(); });
+
+document.getElementById('swapBtn').onclick = ()=>{
+  const f = document.getElementById('from'), t = document.getElementById('to');
+  [f.value, t.value] = [t.value, f.value]; [fromCoord, toCoord] = [toCoord, fromCoord];
+};
+document.getElementById('locateBtn').onclick = ()=>{
+  if(!navigator.geolocation) return alert('Δεν υποστηρίζεται γεωεντοπισμός.');
+  navigator.geolocation.getCurrentPosition(pos=>{
+    fromCoord = {lat:pos.coords.latitude, lon:pos.coords.longitude, name:'Η θέση μου'};
+    document.getElementById('from').value = 'Η θέση μου ('+pos.coords.latitude.toFixed(4)+', '+pos.coords.longitude.toFixed(4)+')';
+  }, ()=>alert('Δεν έγινε δυνατός ο εντοπισμός θέσης.'));
+};
+document.getElementById('clearBtn').onclick = ()=>{
+  ['from','to','tolls'].forEach(id=>document.getElementById(id).value = id==='tolls'?'0':'');
+  fromCoord = toCoord = null; lastDistanceKm = 0;
+  lastRealRoute = null; tollDirty = false; setPickMode(null);
+  Object.keys(pickMarkers).forEach(k=>{ map.removeLayer(pickMarkers[k]); delete pickMarkers[k]; });
+  document.getElementById('results').hidden = true;
+  document.getElementById('roundHint').hidden = true;
+  document.getElementById('tollBadgeOfficial').hidden = true;
+  document.getElementById('tollBadgeEstimate').hidden = true;
+  document.getElementById('tollBreakdown').hidden = true;
+  document.getElementById('status').textContent = '';
+  if(routeLayer) map.removeLayer(routeLayer);
+  markers.forEach(m=>map.removeLayer(m)); markers=[];
+};
+async function geocode(q){
+  const items = await searchPlaces(q);
+  if(!items.length) throw new Error('Δεν βρέθηκε η διεύθυνση: ' + q);
+  return {lat:parseFloat(items[0].lat), lon:parseFloat(items[0].lon), name:items[0].display_name};
+}
+
+// ---------- Υπολογισμός ----------
+document.getElementById('calcBtn').onclick = async ()=>{
+  const status = document.getElementById('status');
+  const fromQ = document.getElementById('from').value.trim();
+  const toQ = document.getElementById('to').value.trim();
+  const consumption = parseFloat(document.getElementById('consumption').value);
+  const price = parseFloat(document.getElementById('fuelPrice').value);
+  if(!fromQ || !toQ){ status.textContent = '⚠️ Συμπλήρωσε αφετηρία και προορισμό.'; return; }
+  if(!(consumption>0)){ status.textContent = '⚠️ Δώσε έγκυρη κατανάλωση.'; return; }
+  if(!(price>0)){ status.textContent = '⚠️ Δώσε έγκυρη τιμή καυσίμου.'; return; }
+
+  status.innerHTML = '<span class="loader"></span> Υπολογισμός διαδρομής…';
+  try{
+    if(!fromCoord) fromCoord = await geocode(fromQ);
+    if(!toCoord) toCoord = await geocode(toQ);
+    const path = `${fromCoord.lon},${fromCoord.lat};${toCoord.lon},${toCoord.lat}?overview=full&geometries=geojson`;
+    const routers = [
+      'https://router.project-osrm.org/route/v1/driving/',
+      'https://routing.openstreetmap.de/routed-car/route/v1/driving/'
+    ];
+    let data = null, lastErr = '';
+    for(const base of routers){
+      try{
+        const res = await fetch(base + path);
+        if(!res.ok){ lastErr = 'HTTP ' + res.status + ' από ' + new URL(base).hostname; continue; }
+        const j = await res.json();
+        if(j.code==='Ok' && j.routes?.length){ data = j; break; }
+        lastErr = 'άκυρη απάντηση από ' + new URL(base).hostname;
+      }catch(e){ lastErr = e.message || 'σφάλμα δικτύου'; }
+    }
+    if(!data) throw new Error('Η δρομολόγηση μπλοκαρίστηκε (' + lastErr + '). Δοκίμασε ξανά σε 1 λεπτό.');
+    const route = data.routes[0];
+    const km = route.distance/1000; lastDistanceKm = km; lastSeconds = route.duration;
+
+    if(routeLayer) map.removeLayer(routeLayer);
+    markers.forEach(m=>map.removeLayer(m)); markers=[];
+    routeLayer = L.geoJSON(route.geometry, {style:{color:'#2563eb', weight:5, opacity:.9}}).addTo(map);
+    const a = L.marker([fromCoord.lat, fromCoord.lon]).addTo(map).bindPopup('Αφετηρία').openPopup();
+    const b = L.marker([toCoord.lat, toCoord.lon]).addTo(map).bindPopup('Προορισμός');
+    markers.push(a,b); map.fitBounds(routeLayer.getBounds(), {padding:[30,30]});
+
+    // ---- Διόδια: επίσημα (στην επιλεγμένη κατηγορία) ή εκτίμηση ----
+    const tollInput = document.getElementById('tolls');
+    const currentToll = parseFloat(tollInput.value) || 0;
+    const real = findRealRoute(fromQ + ' ' + (fromCoord.name||''), toQ + ' ' + (toCoord.name||''));
+    lastRealRoute = real; tollDirty = false;
+    if(currentToll === 0){
+      if(real){
+        applyTolls(real, getCat());
+      } else {
+        tollInput.value = fallbackEstimate(km);
+        document.getElementById('tollBadgeOfficial').hidden = true;
+        document.getElementById('tollBadgeEstimate').hidden = false;
+        const box = document.getElementById('tollBreakdown');
+        box.hidden = false;
+        box.innerHTML = 'Δεν βρέθηκε έτοιμος άξονας για αυτή τη διαδρομή — μπήκε εκτίμηση βάσει χιλιομέτρων' +
+          (getCat() >= 3 ? ' (για φορτηγό η πραγματική τιμή είναι πολλαπλάσια — διόρθωσέ το)' : '') + '. ' +
+          'Γνωστοί άξονες με επίσημες τιμές (ΙΧ κατ.2): Αθήνα↔Θεσσαλονίκη (36,70€), Αθήνα↔Πάτρα (13,80€), Αντίρριο↔Ιωάννινα (15,00€), Κόρινθος↔Καλαμάτα (11,75€), ολόκληρη Εγνατία (30,45€), Γέφυρα (15,90€), Αττική Οδός (2,55€). Διόρθωσε το ποσό αν ξέρεις το ακριβές.';
+      }
+    }
+    renderResults(km);
+    status.textContent = real ? '✅ Βρέθηκε διαδρομή + επίσημα διόδια 2026.' : '✅ Βρέθηκε διαδρομή. Τα διόδια είναι εκτίμηση — δες τη σημείωση.';
+  }catch(err){ console.error(err); status.textContent = '❌ ' + (err.message||'Σφάλμα. Δοκίμασε ξανά.'); }
+};
+
+['consumption','fuelPrice','tolls'].forEach(id=>{
+  document.getElementById(id).addEventListener('input', ()=>{
+    if(id==='consumption') consumptionTouched = true;
+    if(id==='tolls'){
+      tollDirty = true;
+      document.getElementById('tollBadgeOfficial').hidden = true;
+      document.getElementById('tollBadgeEstimate').hidden = true;
+    }
+    if(lastDistanceKm>0 && !document.getElementById('results').hidden) renderResults(lastDistanceKm);
+  });
+});
+document.getElementById('roundTrip').addEventListener('change', ()=>{ if(lastDistanceKm>0 && !document.getElementById('results').hidden) renderResults(lastDistanceKm); });
+
+// ---------- Κατηγορία οχήματος ----------
+const TYPICAL_CONS = {1:4.0, 2:7.5, 3:22.0, 4:28.0};
+let consumptionTouched = false, lastRealRoute = null, tollDirty = false;
+function getCat(){ return parseInt(document.getElementById('vehicleCat').value) || 2; }
+function catName(c){ return c===1?'Μοτοσικλέτα':c===2?'ΙΧ':c===3?'Φορτηγό 2–3 αξ.':'Φορτηγό 4+ αξ.'; }
+function applyTolls(real, cat){
+  const total = round5(routeTotal(real, cat));
+  document.getElementById('tolls').value = total.toFixed(2);
+  tollDirty = false;
+  document.getElementById('tollBadgeOfficial').hidden = false;
+  document.getElementById('tollBadgeOfficial').textContent = '✓ επίσημη τιμή 2026 · Κατ. ' + cat;
+  document.getElementById('tollBadgeEstimate').hidden = true;
+  const box = document.getElementById('tollBreakdown');
+  box.hidden = false;
+  box.innerHTML = '<b>'+real.label+' — '+total.toFixed(2)+'€ (Κατ. '+cat+')</b><br>' +
+    real.stations.map(s=>`${s}: ${tollPrice(s,cat).toFixed(2)}€`).join(' · ') +
+    '<br><span style="color:#64748b">Τιμές 2026, '+catName(cat)+'. Επαλήθευση: mydiodia.gr + τιμοκατάλογοι παραχωρησιούχων.</span>';
+}
+document.getElementById('vehicleCat').addEventListener('change', ()=>{
+  const cat = getCat();
+  document.getElementById('tollsLabel').textContent = '🛣️ Διόδια (€) — Κατ. ' + cat;
+  if(!consumptionTouched) document.getElementById('consumption').value = TYPICAL_CONS[cat];
+  if(lastRealRoute && !tollDirty){
+    applyTolls(lastRealRoute, cat);
+    if(lastDistanceKm>0 && !document.getElementById('results').hidden) renderResults(lastDistanceKm);
+  } else if(lastDistanceKm>0 && !document.getElementById('results').hidden){
+    renderResults(lastDistanceKm);
+  }
+});
+
+// ---------- Επιλογή αφετηρίας/προορισμού από τον χάρτη ----------
+let pickMode = null;
+const pickMarkers = {};
+function setPickMode(m){
+  pickMode = m;
+  document.getElementById('pickFromBtn').classList.toggle('picking', m==='from');
+  document.getElementById('pickToBtn').classList.toggle('picking', m==='to');
+  map.getContainer().style.cursor = m ? 'crosshair' : '';
+  if(m) document.getElementById('status').textContent = m==='from'
+    ? '🗺 Πάτα στον χάρτη για την αφετηρία (ξαναπάτα το κουμπί για ακύρωση).'
+    : '🗺 Πάτα στον χάρτη για τον προορισμό (ξαναπάτα το κουμπί για ακύρωση).';
+}
+document.getElementById('pickFromBtn').onclick = ()=>setPickMode(pickMode==='from' ? null : 'from');
+document.getElementById('pickToBtn').onclick = ()=>setPickMode(pickMode==='to' ? null : 'to');
+async function reverseGeocode(lat, lon){
+  try{
+    const r = await fetch('https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat='+lat+'&lon='+lon+'&accept-language=el');
+    if(r.ok){ const j = await r.json(); if(j.display_name) return j.display_name; }
+  }catch(e){}
+  try{
+    const r2 = await fetch('https://photon.komoot.io/reverse?lat='+lat+'&lon='+lon+'&lang=el');
+    if(r2.ok){ const j2 = await r2.json(); const f = (j2.features||[])[0];
+      if(f) return [f.properties.name, f.properties.city, f.properties.country].filter(Boolean).join(', '); }
+  }catch(e){}
+  return null;
+}
+async function setPickedPoint(which, latlng){
+  const lat = +latlng.lat.toFixed(5), lon = +latlng.lng.toFixed(5);
+  const coord = {lat, lon, name:'Σημείο χάρτη'};
+  if(which==='from') fromCoord = coord; else toCoord = coord;
+  const input = document.getElementById(which==='from' ? 'from' : 'to');
+  input.value = 'Σημείο (' + lat.toFixed(4) + ', ' + lon.toFixed(4) + ')';
+  if(pickMarkers[which]) map.removeLayer(pickMarkers[which]);
+  pickMarkers[which] = L.marker([lat, lon]).addTo(map)
+    .bindPopup(which==='from' ? 'Αφετηρία (από χάρτη)' : 'Προορισμός (από χάρτη)').openPopup();
+  document.getElementById('status').innerHTML = '<span class="loader"></span> Εύρεση διεύθυνσης…';
+  const addr = await reverseGeocode(lat, lon);
+  if(addr){
+    coord.name = addr;
+    input.value = addr.split(',').slice(0,2).join(',');
+  }
+  document.getElementById('status').textContent = '✅ Ορίστηκε ' + (which==='from' ? 'η αφετηρία' : 'ο προορισμός') + ' από τον χάρτη. Πάτα «Υπολογισμός κόστους».';
+}
+map.on('click', e=>{ if(!pickMode) return; const w = pickMode; setPickMode(null); setPickedPoint(w, e.latlng); });
+
+function renderResults(km){
+  const consumption = parseFloat(document.getElementById('consumption').value)||0;
+  const price = parseFloat(document.getElementById('fuelPrice').value)||0;
+  const tolls = parseFloat(document.getElementById('tolls').value)||0;
+  const roundTrip = document.getElementById('roundTrip').checked;
+  const mult = roundTrip?2:1;
+  const liters = km*consumption/100*mult;
+  const fuelCost = liters*price;
+  const tollTotal = tolls*mult;
+  const h = Math.floor(lastSeconds/3600), m = Math.round((lastSeconds%3600)/60);
+  const timeStr = h>0?`${h} h ${m} min`:`${m} min`;
+  document.getElementById('rDist').textContent = (km*mult).toFixed(1)+' km';
+  document.getElementById('rTime').textContent = roundTrip?timeStr+' ×2':timeStr;
+  document.getElementById('rLiters').textContent = liters.toFixed(1)+' L';
+  document.getElementById('rFuel').textContent = fuelCost.toFixed(2)+' €';
+  document.getElementById('rTolls').textContent = tollTotal.toFixed(2)+' €';
+  document.getElementById('rTotal').textContent = (fuelCost+tollTotal).toFixed(2)+' €';
+  document.getElementById('results').hidden = false;
+  document.getElementById('roundHint').hidden = !roundTrip;
+}
+
+// ---------- Εκτύπωση σε μία σελίδα Α4 ----------
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function buildPrintSummary(){
+  const cat = getCat();
+  const from = document.getElementById('from').value.trim() || '—';
+  const to = document.getElementById('to').value.trim() || '—';
+  const cons = document.getElementById('consumption').value || '—';
+  const fprice = document.getElementById('fuelPrice').value || '—';
+  const fuelName = document.getElementById('fuelType').selectedOptions[0].textContent;
+  const rt = document.getElementById('roundTrip').checked ? 'Ναι (×2)' : 'Όχι';
+  const done = !document.getElementById('results').hidden;
+  const v = id=>document.getElementById(id).textContent;
+  const tolls = document.getElementById('tolls').value || '0';
+  let breakdown = '';
+  if(lastRealRoute){
+    const total = round5(routeTotal(lastRealRoute, cat));
+    breakdown = '<tr><th>Ανάλυση διοδίων (Κατ. ' + cat + ')</th><td class="pbreak"><b>' + esc(lastRealRoute.label) +
+      ' — ' + total.toFixed(2) + '€</b><br>' +
+      lastRealRoute.stations.map(s=>esc(s) + ': ' + tollPrice(s,cat).toFixed(2) + '€').join(' · ') + '</td></tr>';
+  }
+  const now = new Date();
+  const datestr = now.toLocaleDateString('el-GR') + ' ' + now.toLocaleTimeString('el-GR', {hour:'2-digit', minute:'2-digit'});
+  document.getElementById('printSummary').innerHTML =
+    '<h2>🚗 Κόστος Ταξιδιού — ' + esc(from) + ' → ' + esc(to) + '</h2>' +
+    '<p class="psub">Ημερομηνία: ' + datestr + ' · Κατηγορία οχήματος: Κατ. ' + cat + ' (' + esc(catName(cat)) + ') · Μετ’ επιστροφής: ' + rt + '</p>' +
+    '<table>' +
+    '<tr><th>Απόσταση</th><td>' + esc(done ? v('rDist') : '—') + '</td><th>Διάρκεια</th><td>' + esc(done ? v('rTime') : '—') + '</td></tr>' +
+    '<tr><th>Κατανάλωση</th><td>' + esc(cons) + ' L/100km</td><th>Καύσιμο</th><td>' + esc(fuelName) + ' (' + esc(fprice) + ' €/L)</td></tr>' +
+    '<tr><th>Καύσιμα διαδρομής</th><td>' + esc(done ? v('rLiters') : '—') + '</td><th>Κόστος καυσίμου</th><td>' + esc(done ? v('rFuel') : '—') + '</td></tr>' +
+    '<tr><th>Διόδια</th><td>' + esc(done ? v('rTolls') : tolls + ' €') + '</td><th>Χάρτης</th><td>βλ. παρακάτω</td></tr>' +
+    breakdown +
+    '<tr class="ptotal"><td colspan="3">ΣΥΝΟΛΙΚΟ ΚΟΣΤΟΣ' + (document.getElementById('roundTrip').checked ? ' (με επιστροφή)' : '') + '</td><td>' + esc(done ? v('rTotal') : '—') + '</td></tr>' +
+    '</table>' +
+    '<p class="psub">Τιμές διοδίων 2026 (επίσημοι τιμοκατάλογοι παραχωρησιούχων) · Τιμές καυσίμων: μέσος όρος 17/9/2026 (ΔΙΜΕΑ) — ελέγξτε την τρέχουσα τιμή πρατηρίου.</p>';
+}
+document.getElementById('printBtn').onclick = ()=>{
+  buildPrintSummary();
+  // Μικραίνουμε προσωρινά τον χάρτη στο μέγεθος εκτύπωσης για να φορτώσουν τα πλακίδια
+  document.body.classList.add('pre-print');
+  map.invalidateSize();
+  setTimeout(()=>{ window.print(); }, 700);
+};
+window.addEventListener('afterprint', ()=>{
+  document.body.classList.remove('pre-print');
+  map.invalidateSize();
+});
+window.addEventListener('beforeprint', ()=>{ buildPrintSummary(); map.invalidateSize(); });
+
+// ---------- Κοινοποίηση με σύνδεσμο Google Maps ----------
+function gmapsLink(){
+  let url = 'https://www.google.com/maps/dir/?api=1';
+  const fromQ = document.getElementById('from').value.trim();
+  const toQ = document.getElementById('to').value.trim();
+  url += '&origin=' + (fromCoord ? fromCoord.lat.toFixed(5) + ',' + fromCoord.lon.toFixed(5) : encodeURIComponent(fromQ));
+  url += '&destination=' + (toCoord ? toCoord.lat.toFixed(5) + ',' + toCoord.lon.toFixed(5) : encodeURIComponent(toQ));
+  return url;
+}
+function shareText(){
+  const from = document.getElementById('from').value.trim() || '—';
+  const to = document.getElementById('to').value.trim() || '—';
+  const done = !document.getElementById('results').hidden;
+  const v = id=>document.getElementById(id).textContent;
+  const lines = ['🚗 Κόστος ταξιδιού: ' + from + ' → ' + to];
+  if(done){
+    lines.push('📏 ' + v('rDist') + ' · ⏱ ' + v('rTime'));
+    lines.push('⛽ Καύσιμα: ' + v('rFuel') + ' · 🛣 Διόδια: ' + v('rTolls'));
+    lines.push('💰 ΣΥΝΟΛΟ: ' + v('rTotal'));
+  } else {
+    lines.push('(χωρίς υπολογισμό — άνοιξε τον σύνδεσμο για τη διαδρομή)');
+  }
+  lines.push('🗺 Διαδρομή: ' + gmapsLink());
+  return lines.join('\n');
+}
+async function copyText(t){
+  try{
+    if(navigator.clipboard && navigator.clipboard.writeText){ await navigator.clipboard.writeText(t); return true; }
+  }catch(e){ /* fallback παρακάτω */ }
+  try{
+    const ta = document.createElement('textarea');
+    ta.value = t; ta.setAttribute('readonly', '');
+    ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;';
+    document.body.appendChild(ta); ta.select();
+    ta.setSelectionRange(0, ta.value.length);
+    const ok = document.execCommand('copy');
+    document.body.removeChild(ta);
+    return !!ok;
+  }catch(e){ return false; }
+}
+function showShareModal(text, link){
+  document.getElementById('shareTextArea').value = text;
+  document.getElementById('openGmaps').href = link;
+  document.getElementById('copyStatus').textContent = '';
+  document.getElementById('shareModal').hidden = false;
+  const ta = document.getElementById('shareTextArea');
+  ta.focus(); ta.select();
+}
+document.getElementById('closeShareBtn').onclick = ()=>{ document.getElementById('shareModal').hidden = true; };
+document.getElementById('shareModal').addEventListener('click', e=>{
+  if(e.target.id === 'shareModal') document.getElementById('shareModal').hidden = true;
+});
+document.getElementById('copyTextBtn').onclick = async ()=>{
+  const t = document.getElementById('shareTextArea').value;
+  document.getElementById('copyStatus').textContent = await copyText(t)
+    ? '✅ Αντιγράφηκε!'
+    : '❌ Μπλοκαρίστηκε — επίλεξε το κείμενο και πάτα Ctrl+C (ή παρατεταμένο πάτημα → Αντιγραφή στο κινητό).';
+};
+document.getElementById('shareBtn').onclick = async ()=>{
+  const status = document.getElementById('status');
+  // Αν δεν έχουν βρεθεί συντεταγμένες ακόμα, δοκίμασε αθόρυβα geocoding για ακριβή σύνδεσμο
+  try{
+    if(!fromCoord && document.getElementById('from').value.trim()) fromCoord = await geocode(document.getElementById('from').value.trim());
+    if(!toCoord && document.getElementById('to').value.trim()) toCoord = await geocode(document.getElementById('to').value.trim());
+  }catch(e){ /* σύνδεσμος με ονόματα αντί για συντεταγμένες */ }
+  const text = shareText(), link = gmapsLink();
+  if(typeof navigator.share === 'function'){
+    try{ await navigator.share({title: 'Κόστος ταξιδιού', text}); status.textContent = '✅ Κοινοποιήθηκε.'; return; }
+    catch(e){ if(e && e.name === 'AbortError') return; /* αλλιώς fallback σε αντιγραφή */ }
+  }
+  if(await copyText(text)){
+    status.textContent = '✅ Αντιγράφηκε! Επικόλλησέ το όπου θες (Viber/WhatsApp/email).';
+  } else {
+    showShareModal(text, link);
+    status.textContent = '⚠️ Η αυτόματη αντιγραφή μπλοκαρίστηκε — αντίγραψε χειροκίνητα από το παράθυρο.';
+  }
+};
+</script>
+</body>
+</html>
